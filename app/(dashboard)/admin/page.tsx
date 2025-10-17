@@ -36,13 +36,9 @@ export default function AdminPage() {
   const fetchCategories = async () => {
     setLoading(true)
     try {
-      console.log('🔄 Fetching categories from API...')
       const data = await api.getCategories()
-      console.log('✅ Fetched categories:', data)
-      console.log('📋 Categories data structure:', data.map(cat => ({ id: cat.id, name: cat.name, _id: (cat as any)._id })))
       setCategories(data)
     } catch (error) {
-      console.error('❌ Failed to fetch categories:', error)
       toast({ 
         title: "Error", 
         description: error instanceof Error ? error.message : "Failed to fetch categories",
@@ -63,14 +59,12 @@ export default function AdminPage() {
 
     try {
       if (editingCategory) {
-        console.log('Updating category:', editingCategory.id, data)
         if (!editingCategory.id) {
           throw new Error('Category ID is missing')
         }
         await api.updateCategory(editingCategory.id, data)
         toast({ title: "Category updated successfully" })
       } else {
-        console.log('Creating new category:', data)
         await api.createCategory(data)
         toast({ title: "Category created successfully" })
       }
@@ -91,7 +85,6 @@ export default function AdminPage() {
   const handleDeleteCategory = async (id: string) => {
     if (confirm("Are you sure you want to delete this category? This action cannot be undone.")) {
       try {
-        console.log('Deleting category:', id)
         if (!id) {
           throw new Error('Category ID is missing')
         }
@@ -99,7 +92,6 @@ export default function AdminPage() {
         toast({ title: "Category deleted successfully" })
         fetchCategories()
       } catch (error) {
-        console.error('Failed to delete category:', error)
         toast({ 
           title: "Error", 
           description: error instanceof Error ? error.message : "Failed to delete category",
@@ -252,10 +244,6 @@ export default function AdminPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => {
-                            console.log('Editing category:', category)
-                            console.log('Category ID:', category.id)
-                            console.log('Category _id:', (category as any)._id)
-                            
                             if (!category.id && !(category as any)._id) {
                               toast({
                                 title: "Error",

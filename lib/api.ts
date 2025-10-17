@@ -61,13 +61,68 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8
 // Helper function to get auth headers
 async function getAuthHeaders(): Promise<HeadersInit> {
   // Get token from the auth system
-  const { getAccessToken } = await import('./auth')
+  const { getAccessToken, isTokenExpired, refreshAccessToken } = await import('./auth')
+  
+  // Kiểm tra token có sắp hết hạn không (trước 5 phút)
   const token = getAccessToken()
+  const isExpired = isTokenExpired()
+  
+  // Nếu token hết hạn hoặc sắp hết hạn, thử refresh
+  if (isExpired || !token) {
+    const newToken = await refreshAccessToken()
+    if (newToken) {
+      return {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${newToken}`,
+      }
+    }
+  }
   
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
   }
+}
+
+// Helper function to make authenticated requests with auto-retry
+async function makeAuthenticatedRequest<T>(
+  url: string, 
+  options: RequestInit = {}
+): Promise<T> {
+  const { refreshAccessToken, clearSession } = await import('./auth')
+  
+  // Thử request lần đầu
+  let response = await fetch(url, {
+    ...options,
+    headers: {
+      ...await getAuthHeaders(),
+      ...options.headers,
+    }
+  })
+  
+  // Nếu gặp 401, thử refresh token và retry
+  if (response.status === 401) {
+    const newToken = await refreshAccessToken()
+    if (newToken) {
+      // Retry với token mới
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          ...await getAuthHeaders(),
+          ...options.headers,
+        }
+      })
+    } else {
+      // Refresh thất bại, clear session và redirect
+      clearSession()
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
+      throw new Error('Authentication required')
+    }
+  }
+  
+  return handleApiResponse(response)
 }
 
 // Helper function to handle API responses
@@ -77,13 +132,20 @@ async function handleApiResponse<T>(response: Response): Promise<T> {
     if (response.status === 401) {
       const { clearSession } = await import('./auth')
       clearSession()
-      window.location.href = '/login'
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
       throw new Error('Authentication required')
     }
     
     // Handle 403 Forbidden
     if (response.status === 403) {
       throw new Error('Access denied')
+    }
+    
+    // Handle network errors
+    if (response.status === 0 || !response.status) {
+      throw new Error('Network error: Unable to connect to server')
     }
     
     // Handle other errors
@@ -110,51 +172,36 @@ export const api = {
       ...(filters?.search && { search: filters.search }),
     })
 
-    const response = await fetch(`${API_BASE_URL}/orders?${params}`, {
-      headers: await getAuthHeaders(),
-    })
-
-    return handleApiResponse(response)
+    return makeAuthenticatedRequest(`${API_BASE_URL}/orders?${params}`)
   },
 
   async getOrder(id: string): Promise<Order | null> {
-    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
-      headers: await getAuthHeaders(),
-    })
-
-    if (response.status === 404) return null
-    return handleApiResponse(response)
+    try {
+      return await makeAuthenticatedRequest(`${API_BASE_URL}/orders/${id}`)
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('404')) return null
+      throw error
+    }
   },
 
   async createOrder(data: Partial<Order>): Promise<Order> {
-    const response = await fetch(`${API_BASE_URL}/orders`, {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/orders`, {
       method: 'POST',
-      headers: await getAuthHeaders(),
       body: JSON.stringify(data),
     })
-
-    return handleApiResponse(response)
   },
 
   async updateOrder(id: string, data: Partial<Order>): Promise<Order> {
-    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/orders/${id}`, {
       method: 'PATCH',
-      headers: await getAuthHeaders(),
       body: JSON.stringify(data),
     })
-
-    return handleApiResponse(response)
   },
 
   async deleteOrder(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
+    await makeAuthenticatedRequest(`${API_BASE_URL}/orders/${id}`, {
       method: 'DELETE',
-      headers: await getAuthHeaders(),
     })
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete order: ${response.statusText}`)
-    }
   },
 
   // Products
@@ -171,99 +218,65 @@ export const api = {
       ...(filters?.search && { search: filters.search }),
     })
 
-    const response = await fetch(`${API_BASE_URL}/products?${params}`, {
-      headers: await getAuthHeaders(),
-    })
-
-    return handleApiResponse(response)
+    return makeAuthenticatedRequest(`${API_BASE_URL}/products?${params}`)
   },
 
   async getProduct(id: string): Promise<Product | null> {
-    const response = await fetch(`${API_BASE_URL}/products/${id}`, {
-      headers: await getAuthHeaders(),
-    })
-
-    if (response.status === 404) return null
-    return handleApiResponse(response)
+    try {
+      return await makeAuthenticatedRequest(`${API_BASE_URL}/products/${id}`)
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('404')) return null
+      throw error
+    }
   },
 
   async createProduct(data: Partial<Product>): Promise<Product> {
-    const response = await fetch(`${API_BASE_URL}/products`, {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/products`, {
       method: 'POST',
-      headers: await getAuthHeaders(),
       body: JSON.stringify(data),
     })
-
-    return handleApiResponse(response)
   },
 
   async updateProduct(id: string, data: Partial<Product>): Promise<Product> {
-    const response = await fetch(`${API_BASE_URL}/products/${id}`, {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/products/${id}`, {
       method: 'PATCH',
-      headers: await getAuthHeaders(),
       body: JSON.stringify(data),
     })
-
-    return handleApiResponse(response)
   },
 
   async deleteProduct(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/products/${id}`, {
+    await makeAuthenticatedRequest(`${API_BASE_URL}/products/${id}`, {
       method: 'DELETE',
-      headers: await getAuthHeaders(),
     })
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete product: ${response.statusText}`)
-    }
   },
 
   // Categories
   async getCategories(): Promise<Category[]> {
-    const response = await fetch(`${API_BASE_URL}/categories`, {
-      headers: await getAuthHeaders(),
-    })
-
-    return handleApiResponse(response)
+    return makeAuthenticatedRequest(`${API_BASE_URL}/categories`)
   },
 
   async createCategory(data: Partial<Category>): Promise<Category> {
-    const response = await fetch(`${API_BASE_URL}/categories`, {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/categories`, {
       method: 'POST',
-      headers: await getAuthHeaders(),
       body: JSON.stringify(data),
     })
-
-    return handleApiResponse(response)
   },
 
   async updateCategory(id: string, data: Partial<Category>): Promise<Category> {
-    const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/categories/${id}`, {
       method: 'PATCH',
-      headers: await getAuthHeaders(),
       body: JSON.stringify(data),
     })
-
-    return handleApiResponse(response)
   },
 
   async deleteCategory(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
+    await makeAuthenticatedRequest(`${API_BASE_URL}/categories/${id}`, {
       method: 'DELETE',
-      headers: await getAuthHeaders(),
     })
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete category: ${response.statusText}`)
-    }
   },
 
   // Dashboard
   async getDashboardStats(): Promise<DashboardStats> {
-    const response = await fetch(`${API_BASE_URL}/dashboard/stats`, {
-      headers: await getAuthHeaders(),
-    })
-
-    return handleApiResponse(response)
+    return makeAuthenticatedRequest(`${API_BASE_URL}/dashboard/stats`)
   },
 }

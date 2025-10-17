@@ -29,7 +29,6 @@ export async function signInWithGoogle(): Promise<User> {
 }
 
 export async function signOut(): Promise<void> {
-  console.log("[v0] Revoking access token...")
   await new Promise((resolve) => setTimeout(resolve, 500))
 
   currentUser = null
@@ -38,11 +37,15 @@ export async function signOut(): Promise<void> {
   localStorage.removeItem("refreshToken")
   localStorage.removeItem("tokenExpiry")
 
-  console.log("[v0] User signed out successfully")
 }
 
 export function getCurrentUser(): User | null {
   if (typeof window === "undefined") return null
+
+  // Check if user is authenticated first
+  if (!isAuthenticated()) {
+    return null
+  }
 
   if (!currentUser) {
     const stored = localStorage.getItem("user")
@@ -56,7 +59,20 @@ export function getCurrentUser(): User | null {
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null
-  return currentTokens.accessToken
+  
+  // Return from memory first
+  if (currentTokens.accessToken) {
+    return currentTokens.accessToken
+  }
+  
+  // Fallback to localStorage
+  const storedToken = localStorage.getItem("accessToken")
+  if (storedToken) {
+    currentTokens.accessToken = storedToken
+    return storedToken
+  }
+  
+  return null
 }
 
 export function isTokenExpired(): boolean {
@@ -65,22 +81,26 @@ export function isTokenExpired(): boolean {
   const expiry = localStorage.getItem("tokenExpiry")
   if (!expiry) return true
 
-  return Date.now() > Number.parseInt(expiry)
+  // Thêm buffer 5 phút trước khi token thực sự hết hạn
+  const bufferTime = 5 * 60 * 1000 // 5 phút
+  return Date.now() > (Number.parseInt(expiry) - bufferTime)
 }
 
 export function isAuthenticated(): boolean {
   if (typeof window === "undefined") return false
   
-  // Kiểm tra có access token hợp lệ không
+  // Kiểm tra có access token không
   const accessToken = getAccessToken()
-  if (accessToken && !isTokenExpired()) {
+  const refreshToken = getRefreshToken()
+  
+  // Nếu có refresh token, user vẫn được coi là authenticated
+  // (có thể refresh access token)
+  if (refreshToken) {
     return true
   }
   
-  // Nếu access token hết hạn, kiểm tra có refresh token không
-  const refreshToken = getRefreshToken()
-  if (refreshToken) {
-    // Có refresh token, có thể refresh access token
+  // Nếu không có refresh token, kiểm tra access token
+  if (accessToken && !isTokenExpired()) {
     return true
   }
   
@@ -96,6 +116,7 @@ export function setSessionTokens(params: { accessToken: string; refreshToken: st
   currentTokens.accessToken = accessToken
   const expiryAt = Date.now() + (expiresIn || 3600) * 1000
   currentTokens.expiryAt = expiryAt
+  localStorage.setItem("accessToken", accessToken)
   localStorage.setItem("tokenExpiry", String(expiryAt))
   if (refreshToken) {
     localStorage.setItem("refreshToken", refreshToken)
@@ -111,6 +132,7 @@ export function clearSession(): void {
   if (typeof window === "undefined") return
   currentTokens = { accessToken: null, expiryAt: null }
   currentUser = null
+  localStorage.removeItem("accessToken")
   localStorage.removeItem("refreshToken")
   localStorage.removeItem("tokenExpiry")
   localStorage.removeItem("user")
@@ -135,9 +157,10 @@ export async function refreshAccessToken(): Promise<string | null> {
   }
   
   const data = await res.json()
-  const newAccess = data?.accessToken as string | undefined
-  const newRefresh = (data?.refreshToken as string | undefined) || refreshToken
-  const expiresIn = (data?.expiresIn as number | undefined) || 3600
+  const result = data?.data || data // Backend trả về { success: true, data: {...} }
+  const newAccess = result?.accessToken as string | undefined
+  const newRefresh = (result?.refreshToken as string | undefined) || refreshToken
+  const expiresIn = (result?.expiresIn as number | undefined) || 3600
   
   if (!newAccess) return null
   

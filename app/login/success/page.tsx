@@ -29,9 +29,6 @@ export default function LoginSuccessPage() {
         const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api'
         const endpoint = `${apiBase}/auth/google`
         
-        console.log('🔗 Calling backend endpoint:', endpoint)
-        console.log('📦 Sending tokens to backend...')
-
         const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -41,15 +38,12 @@ export default function LoginSuccessPage() {
           }),
         })
         
-        console.log('📡 Backend response status:', res.status)
-  
         if (!res.ok) {
           router.replace("/login?error=backend_fail")
           return
         }
   
         const body = await res.json().catch(() => null)
-        console.log('📦 Backend response body:', body)
         
         if (body?.success && body?.data?.accessToken) {
           setSessionTokens({
@@ -57,7 +51,12 @@ export default function LoginSuccessPage() {
             refreshToken: body.data.refreshToken || data.tokens.refreshToken,
             expiresIn: body.data.expiresIn ?? data.tokens.expiresIn ?? 3600,
           })
-          console.log('✅ Authentication successful!')
+          
+          // Save user data to localStorage
+          if (body.data.user) {
+            localStorage.setItem("user", JSON.stringify(body.data.user))
+          }
+
         } else {
           console.error('❌ Invalid backend response:', body)
           router.replace("/login?error=invalid_response")
@@ -66,6 +65,11 @@ export default function LoginSuccessPage() {
   
         // expire cookie sau khi dùng
         document.cookie = "oauth_result=; path=/; max-age=0; SameSite=Lax"
+        
+        // Small delay to ensure localStorage is saved
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        console.log('🚀 Redirecting to dashboard...')
         router.replace("/dashboard")
       } catch (e) {
         console.error("Login success handler error:", e)
