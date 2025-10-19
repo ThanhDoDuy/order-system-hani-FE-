@@ -55,6 +55,38 @@ export interface DashboardStats {
   revenueTrend: number
 }
 
+export interface User {
+  id: string
+  email: string
+  name: string
+  picture?: string
+  role: "admin" | "user"
+  status: "active" | "inactive"
+  lastLoginAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Permission {
+  id: string
+  name: string
+  description: string
+  type: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Role {
+  id: string
+  name: string
+  description: string
+  permissions: string[]
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api'
 
@@ -278,5 +310,100 @@ export const api = {
   // Dashboard
   async getDashboardStats(): Promise<DashboardStats> {
     return makeAuthenticatedRequest(`${API_BASE_URL}/dashboard/stats`)
+  },
+
+  // Users
+  async getUsers(
+    page = 1,
+    limit = 10
+  ): Promise<{ success: boolean; data: { users: User[]; total: number; page: number; limit: number } }> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    })
+
+    return makeAuthenticatedRequest(`${API_BASE_URL}/users?${params}`)
+  },
+
+  async getUser(id: string): Promise<{ success: boolean; data: User }> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/users/${id}`)
+  },
+
+  async createUser(data: Partial<User>): Promise<{ success: boolean; data: User }> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/users`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateUser(id: string, data: Partial<User>): Promise<{ success: boolean; data: User }> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateUserStatus(id: string, status: 'active' | 'inactive'): Promise<{ success: boolean; data: User }> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/users/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    })
+  },
+
+  async updateUserRole(id: string, role: 'admin' | 'user'): Promise<{ success: boolean; data: User }> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/users/${id}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    })
+  },
+
+  // Roles
+  async getRoles(): Promise<{ success: boolean; data: Role[] }> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/roles`)
+  },
+
+  async createRole(data: Partial<Role>): Promise<Role> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/roles`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateRole(id: string, data: Partial<Role>): Promise<Role> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/roles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async deleteRole(id: string): Promise<void> {
+    await makeAuthenticatedRequest(`${API_BASE_URL}/roles/${id}`, {
+      method: 'DELETE',
+    })
+  },
+
+  // Permissions
+  async getPermissions(): Promise<{ success: boolean; data: Permission[] }> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/roles/permissions`)
+  },
+
+  async createPermission(data: Partial<Permission>): Promise<Permission> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/roles/permissions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updatePermission(id: string, data: Partial<Permission>): Promise<Permission> {
+    return makeAuthenticatedRequest(`${API_BASE_URL}/roles/permissions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async deletePermission(id: string): Promise<void> {
+    await makeAuthenticatedRequest(`${API_BASE_URL}/roles/permissions/${id}`, {
+      method: 'DELETE',
+    })
   },
 }
