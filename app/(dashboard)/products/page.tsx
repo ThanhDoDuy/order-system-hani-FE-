@@ -85,7 +85,8 @@ export default function ProductsPage() {
     const formData = new FormData(e.currentTarget)
     const data = {
       name: formData.get("name") as string,
-      price: Number(formData.get("price")),
+      wholesalePrice: Number(formData.get("wholesalePrice")),
+      retailPrice: Number(formData.get("retailPrice")),
       stock: Number(formData.get("stock")),
       category: formData.get("category") as string,
       status: formData.get("status") as "active" | "inactive",
@@ -163,13 +164,17 @@ export default function ProductsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="price">Price (VND)</Label>
-                    <Input id="price" name="price" type="number" defaultValue={editingProduct?.price} placeholder="Enter price in VND" required />
+                    <Label htmlFor="wholesalePrice">Giá bán sỉ (VND)</Label>
+                    <Input id="wholesalePrice" name="wholesalePrice" type="number" defaultValue={editingProduct?.wholesalePrice || editingProduct?.price} placeholder="Enter wholesale price" required />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="stock">Stock</Label>
-                    <Input id="stock" name="stock" type="number" defaultValue={editingProduct?.stock} required />
+                    <Label htmlFor="retailPrice">Giá bán lẻ (VND)</Label>
+                    <Input id="retailPrice" name="retailPrice" type="number" defaultValue={editingProduct?.retailPrice || editingProduct?.price} placeholder="Enter retail price" required />
                   </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="stock">Stock</Label>
+                  <Input id="stock" name="stock" type="number" defaultValue={editingProduct?.stock} required />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="category">Category</Label>
@@ -259,7 +264,8 @@ export default function ProductsPage() {
                 <TableRow>
                   <TableHead className="w-[80px]">IMAGE</TableHead>
                   <TableHead>PRODUCT NAME</TableHead>
-                  <TableHead>PRICE</TableHead>
+                  <TableHead>GIÁ SỈ</TableHead>
+                  <TableHead>GIÁ LẺ</TableHead>
                   <TableHead>STOCK</TableHead>
                   <TableHead>CATEGORY</TableHead>
                   <TableHead>STATUS</TableHead>
@@ -280,7 +286,8 @@ export default function ProductsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell>{product.price.toLocaleString('vi-VN')}₫</TableCell>
+                    <TableCell>{(product.wholesalePrice || product.price || 0).toLocaleString('vi-VN')}₫</TableCell>
+                    <TableCell>{(product.retailPrice || product.price || 0).toLocaleString('vi-VN')}₫</TableCell>
                     <TableCell>{product.stock}</TableCell>
                     <TableCell>{product.category}</TableCell>
                     <TableCell>

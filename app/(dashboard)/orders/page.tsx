@@ -25,11 +25,15 @@ export default function OrdersPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false)
+  const [selectedProductForAdd, setSelectedProductForAdd] = useState<Product | null>(null)
+  const [addProductQuantity, setAddProductQuantity] = useState(1)
+  const [addProductPriceType, setAddProductPriceType] = useState<'wholesale' | 'retail'>('retail')
   const [newOrder, setNewOrder] = useState({
     customerName: "",
     customerEmail: "",
     customerPhone: "",
-    selectedProducts: [] as Array<{ productId: string; quantity: number; price: number }>,
+    selectedProducts: [] as Array<{ productId: string; quantity: number; price: number; priceType: 'wholesale' | 'retail' }>,
     totalAmount: 0,
     status: "new" as "new" | "preparing" | "shipped" | "cancelled" | "rejected" | "draft",
     shippingAddress: "",
@@ -81,7 +85,7 @@ export default function OrdersPage() {
 
   const totalPages = Math.ceil(total / limit)
 
-  const addProduct = (productId: string, quantity: number) => {
+  const addProduct = (productId: string, quantity: number, priceType: 'wholesale' | 'retail' = 'retail') => {
     const product = products.find(p => p.id === productId)
     if (!product || product.status !== 'active' || product.stock <= 0) {
       toast({
@@ -92,7 +96,12 @@ export default function OrdersPage() {
       return
     }
 
-    const existingIndex = newOrder.selectedProducts.findIndex(item => item.productId === productId)
+    const price = priceType === 'wholesale' 
+      ? (product.wholesalePrice || product.price || 0) 
+      : (product.retailPrice || product.price || 0)
+    const existingIndex = newOrder.selectedProducts.findIndex(item => 
+      item.productId === productId && item.priceType === priceType
+    )
     
     if (existingIndex >= 0) {
       // Update existing product quantity
@@ -127,22 +136,35 @@ export default function OrdersPage() {
         selectedProducts: [...prev.selectedProducts, {
           productId,
           quantity,
-          price: product.price
+          price,
+          priceType
         }]
       }))
     }
   }
 
-  const removeProduct = (productId: string) => {
+  const removeProduct = (productId: string, priceType: 'wholesale' | 'retail') => {
     setNewOrder(prev => ({
       ...prev,
-      selectedProducts: prev.selectedProducts.filter(item => item.productId !== productId)
+      selectedProducts: prev.selectedProducts.filter(item => 
+        !(item.productId === productId && item.priceType === priceType)
+      )
     }))
   }
 
-  const updateProductQuantity = (productId: string, quantity: number) => {
+  const handleAddProductToOrder = () => {
+    if (selectedProductForAdd) {
+      addProduct(selectedProductForAdd.id, addProductQuantity, addProductPriceType)
+      setIsAddProductModalOpen(false)
+      setSelectedProductForAdd(null)
+      setAddProductQuantity(1)
+      setAddProductPriceType('retail')
+    }
+  }
+
+  const updateProductQuantity = (productId: string, quantity: number, priceType: 'wholesale' | 'retail') => {
     if (quantity <= 0) {
-      removeProduct(productId)
+      removeProduct(productId, priceType)
       return
     }
 
@@ -159,7 +181,7 @@ export default function OrdersPage() {
     setNewOrder(prev => ({
       ...prev,
       selectedProducts: prev.selectedProducts.map(item =>
-        item.productId === productId ? { ...item, quantity } : item
+        (item.productId === productId && item.priceType === priceType) ? { ...item, quantity } : item
       )
     }))
   }
@@ -219,6 +241,7 @@ export default function OrdersPage() {
           productId: item.productId,
           productName: product?.name || 'Unknown Product',
           productPrice: item.price,
+          priceType: item.priceType,
           quantity: item.quantity,
           subtotal: item.price * item.quantity
         }
@@ -300,7 +323,10 @@ export default function OrdersPage() {
                     <Select onValueChange={(productId) => {
                       const product = products.find(p => p.id === productId)
                       if (product) {
-                        addProduct(productId, 1)
+                        setSelectedProductForAdd(product)
+                        setAddProductQuantity(1)
+                        setAddProductPriceType('retail')
+                        setIsAddProductModalOpen(true)
                       }
                     }}>
                       <SelectTrigger className="h-10 text-base">
@@ -311,7 +337,7 @@ export default function OrdersPage() {
                           .filter(product => product.status === 'active' && product.stock > 0)
                           .map((product) => (
                             <SelectItem key={product.id} value={product.id}>
-                              {product.name} - {product.price.toLocaleString('vi-VN')}₫ (Stock: {product.stock})
+                              {product.name} - Sỉ: {(product.wholesalePrice || product.price || 0).toLocaleString('vi-VN')}₫ | Lẻ: {(product.retailPrice || product.price || 0).toLocaleString('vi-VN')}₫ (Stock: {product.stock})
                             </SelectItem>
                           ))}
                       </SelectContent>
@@ -323,23 +349,23 @@ export default function OrdersPage() {
                     <div className="space-y-3">
                       <Label className="text-base font-medium">Selected Products</Label>
                       <div className="space-y-1 max-h-32 overflow-y-auto">
-                        {newOrder.selectedProducts.map((item) => {
+                        {newOrder.selectedProducts.map((item, index) => {
                           const product = products.find(p => p.id === item.productId)
                           if (!product) return null
                           
                           return (
-                            <div key={item.productId} className="flex items-center gap-2 p-2 border rounded-lg">
+                            <div key={`${item.productId}-${item.priceType}-${index}`} className="flex items-center gap-2 p-2 border rounded-lg">
                             <div className="flex-1">
                               <div className="font-medium">{product.name}</div>
                               <div className="text-sm text-muted-foreground">
-                                {product.price.toLocaleString('vi-VN')}₫ each • Stock: {product.stock}
+                                {item.price.toLocaleString('vi-VN')}₫ each ({item.priceType === 'wholesale' ? 'Giá sỉ' : 'Giá lẻ'}) • Stock: {product.stock}
                               </div>
                             </div>
                               <div className="flex items-center gap-2">
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => updateProductQuantity(item.productId, item.quantity - 1)}
+                                  onClick={() => updateProductQuantity(item.productId, item.quantity - 1, item.priceType)}
                                 >
                                   -
                                 </Button>
@@ -347,14 +373,14 @@ export default function OrdersPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => updateProductQuantity(item.productId, item.quantity + 1)}
+                                  onClick={() => updateProductQuantity(item.productId, item.quantity + 1, item.priceType)}
                                 >
                                   +
                                 </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => removeProduct(item.productId)}
+                                  onClick={() => removeProduct(item.productId, item.priceType)}
                                   className="text-destructive"
                                 >
                                   Remove
@@ -773,6 +799,61 @@ export default function OrdersPage() {
           </>
         )}
       </div>
+
+      {/* Add Product Modal */}
+      <Dialog open={isAddProductModalOpen} onOpenChange={setIsAddProductModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Product to Order</DialogTitle>
+          </DialogHeader>
+          {selectedProductForAdd && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base font-medium">Product: {selectedProductForAdd.name}</Label>
+                <div className="text-sm text-muted-foreground">
+                  Giá sỉ: {(selectedProductForAdd.wholesalePrice || selectedProductForAdd.price || 0).toLocaleString('vi-VN')}₫ | 
+                  Giá lẻ: {(selectedProductForAdd.retailPrice || selectedProductForAdd.price || 0).toLocaleString('vi-VN')}₫ | 
+                  Stock: {selectedProductForAdd.stock}
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="priceType">Loại giá</Label>
+                <Select value={addProductPriceType} onValueChange={(value: 'wholesale' | 'retail') => setAddProductPriceType(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="wholesale">Giá sỉ ({(selectedProductForAdd.wholesalePrice || selectedProductForAdd.price || 0).toLocaleString('vi-VN')}₫)</SelectItem>
+                    <SelectItem value="retail">Giá lẻ ({(selectedProductForAdd.retailPrice || selectedProductForAdd.price || 0).toLocaleString('vi-VN')}₫)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="quantity">Số lượng</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  max={selectedProductForAdd.stock}
+                  value={addProductQuantity}
+                  onChange={(e) => setAddProductQuantity(Number(e.target.value))}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsAddProductModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddProductToOrder}>
+                  Add to Order
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
