@@ -2,6 +2,7 @@ export interface OrderItem {
   productId: string
   productName: string
   productPrice: number
+  priceType: 'wholesale' | 'retail' // Loại giá được chọn
   quantity: number
   subtotal: number
 }
@@ -26,7 +27,9 @@ export interface Order {
 export interface Product {
   id: string
   name: string
-  price: number
+  wholesalePrice?: number // Giá bán sỉ (optional for backward compatibility)
+  retailPrice?: number // Giá bán lẻ (optional for backward compatibility)
+  price?: number // Giá cũ (for backward compatibility)
   stock: number
   category: string
   status: "active" | "inactive"
