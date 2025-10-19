@@ -4,6 +4,11 @@ export interface User {
   name: string
   avatar?: string
   role: "admin" | "user"
+  status: "active" | "inactive"
+  picture?: string
+  lastLoginAt?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface AuthTokens {
@@ -11,6 +16,26 @@ export interface AuthTokens {
   refreshToken: string
   expiresIn: number
   tokenType: string
+}
+
+export interface Permission {
+  id: string
+  name: string
+  description: string
+  type: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Role {
+  id: string
+  name: string
+  description: string
+  permissions: string[]
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 // Mock user storage (in real app, this would be server-side session)

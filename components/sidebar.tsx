@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, ShoppingCart, Package, FolderTree, LogOut } from "lucide-react"
+import { LayoutDashboard, ShoppingCart, Package, FolderTree, LogOut, Users, Shield } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
@@ -13,6 +13,8 @@ const navigation = [
   { name: "Order", href: "/orders", icon: ShoppingCart },
   { name: "Product", href: "/products", icon: Package },
   { name: "Categories", href: "/admin", icon: FolderTree },
+  { name: "Users", href: "/users", icon: Users, adminOnly: true },
+  { name: "Roles", href: "/roles", icon: Shield, adminOnly: true },
 ]
 
 export function Sidebar() {
@@ -35,6 +37,10 @@ export function Sidebar() {
       <nav className="flex-1 space-y-1 px-3 py-4">
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
+          const isAdminOnly = item.adminOnly && user?.role !== 'admin'
+          
+          if (isAdminOnly) return null
+          
           return (
             <Link
               key={item.name}
